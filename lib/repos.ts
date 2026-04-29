@@ -8,15 +8,26 @@ import {
 
 export const STALE_THRESHOLD_DAYS = 30
 
+export interface FilterStaleReposOptions {
+	requireActionsEnabled?: boolean
+}
+
 /**
  * Returns repos whose last commit is older than `thresholdDays` days ago,
  * or that have never had a commit (null date).
  */
-export function filterStaleRepos(repos: Repo[], thresholdDays: number = STALE_THRESHOLD_DAYS): Repo[] {
+export function filterStaleRepos(
+	repos: Repo[],
+	thresholdDays: number = STALE_THRESHOLD_DAYS,
+	options: FilterStaleReposOptions = {},
+): Repo[] {
+	const { requireActionsEnabled = true } = options
 	const cutoff = new Date()
 	cutoff.setDate(cutoff.getDate() - thresholdDays)
 	return repos.filter(
-		(r) => r.actionsEnabled && (r.lastCommitDate === null || r.lastCommitDate < cutoff)
+		(r) =>
+			(!requireActionsEnabled || r.actionsEnabled) &&
+			(r.lastCommitDate === null || r.lastCommitDate < cutoff),
 	)
 }
 
@@ -27,9 +38,10 @@ export function filterStaleRepos(repos: Repo[], thresholdDays: number = STALE_TH
  */
 export async function disableStaleRepos(
 	octokit: Octokit,
-	thresholdDays: number = STALE_THRESHOLD_DAYS
+	username: string,
+	thresholdDays: number = STALE_THRESHOLD_DAYS,
 ): Promise<Repo[]> {
-	const allRepos = await listPrivateReposWithActions(octokit)
+	const allRepos = await listPrivateReposWithActions(octokit, username)
 	const stale = filterStaleRepos(allRepos, thresholdDays)
 	for (const repo of stale) {
 		await disableActions(octokit, repo.owner, repo.name)
@@ -43,7 +55,7 @@ export async function disableStaleRepos(
  */
 export async function clearCachesForRepos(
 	octokit: Octokit,
-	repos: Repo[]
+	repos: Repo[],
 ): Promise<Map<string, number>> {
 	const results = new Map<string, number>()
 	for (const repo of repos) {

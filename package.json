@@ -21,7 +21,7 @@
 		"typescript": "^5"
 	},
 	"appConfig": {
-		"appBaseName": "clowncar",
+		"appBaseName": "repotool",
 		"appTargets": [
 			"bun-darwin-x64",
 			"bun-darwin-arm64",

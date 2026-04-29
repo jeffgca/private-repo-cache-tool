@@ -21,7 +21,9 @@ function daysAgo(n: number): Date {
 
 describe('filterStaleRepos', () => {
 	test('returns repos with no commits (null date) that have actions enabled', () => {
-		const repos: Repo[] = [makeRepo({ name: 'empty-repo', lastCommitDate: null })]
+		const repos: Repo[] = [
+			makeRepo({ name: 'empty-repo', lastCommitDate: null }),
+		]
 		const stale = filterStaleRepos(repos, STALE_THRESHOLD_DAYS)
 		expect(stale).toHaveLength(1)
 		expect(stale[0]?.name).toBe('empty-repo')
@@ -55,6 +57,21 @@ describe('filterStaleRepos', () => {
 		expect(stale).toHaveLength(0)
 	})
 
+	test('includes repos with actions disabled when requireActionsEnabled is false', () => {
+		const repos: Repo[] = [
+			makeRepo({
+				name: 'actions-off-repo',
+				actionsEnabled: false,
+				lastCommitDate: daysAgo(60),
+			}),
+		]
+		const stale = filterStaleRepos(repos, STALE_THRESHOLD_DAYS, {
+			requireActionsEnabled: false,
+		})
+		expect(stale).toHaveLength(1)
+		expect(stale[0]?.name).toBe('actions-off-repo')
+	})
+
 	test('respects a custom threshold', () => {
 		const repos: Repo[] = [
 			makeRepo({ name: 'borderline-repo', lastCommitDate: daysAgo(10) }),
@@ -70,7 +87,11 @@ describe('filterStaleRepos', () => {
 			makeRepo({ name: 'active', lastCommitDate: daysAgo(2) }),
 			makeRepo({ name: 'stale', lastCommitDate: daysAgo(90) }),
 			makeRepo({ name: 'never-committed', lastCommitDate: null }),
-			makeRepo({ name: 'disabled', actionsEnabled: false, lastCommitDate: daysAgo(90) }),
+			makeRepo({
+				name: 'disabled',
+				actionsEnabled: false,
+				lastCommitDate: daysAgo(90),
+			}),
 		]
 		const stale = filterStaleRepos(repos, STALE_THRESHOLD_DAYS)
 		expect(stale).toHaveLength(2)

@@ -1,5 +1,5 @@
 import { expect, test, describe } from 'bun:test'
-import { createGitHubClient } from '../lib/github'
+import { createGitHubClient } from '../lib/github.ts'
 
 describe('createGitHubClient', () => {
 	test('returns an Octokit instance with expected API surface', () => {
@@ -8,8 +8,12 @@ describe('createGitHubClient', () => {
 		// Octokit exposes a `rest` namespace with API methods
 		expect(typeof octokit.rest).toBe('object')
 		expect(typeof octokit.rest.repos.listForAuthenticatedUser).toBe('function')
-		expect(typeof octokit.rest.actions.getGithubActionsPermissionsRepository).toBe('function')
-		expect(typeof octokit.rest.actions.setGithubActionsPermissionsRepository).toBe('function')
+		expect(
+			typeof octokit.rest.actions.getGithubActionsPermissionsRepository,
+		).toBe('function')
+		expect(
+			typeof octokit.rest.actions.setGithubActionsPermissionsRepository,
+		).toBe('function')
 		expect(typeof octokit.rest.actions.getActionsCacheList).toBe('function')
 		expect(typeof octokit.rest.actions.deleteActionsCacheById).toBe('function')
 	})

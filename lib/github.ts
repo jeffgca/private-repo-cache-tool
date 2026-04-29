@@ -22,21 +22,23 @@ export function createGitHubClient(token: string): Octokit {
 }
 
 /**
- * Returns all private repos for the authenticated user that have Actions enabled.
+ * Returns all private repos owned by `username`.
  * Pagination is handled automatically.
  */
-export async function listPrivateReposWithActions(
-	octokit: Octokit
+export async function listPrivateRepos(
+	octokit: Octokit,
+	username: string,
 ): Promise<Repo[]> {
 	const repos: Repo[] = []
 
 	for await (const response of octokit.paginate.iterator(
 		octokit.rest.repos.listForAuthenticatedUser,
-		{ type: 'private', per_page: 100 }
+		{ type: 'private', per_page: 100 },
 	)) {
 		for (const repo of response.data) {
-			// repos.listForAuthenticatedUser already filters to private repos
 			const owner = repo.owner?.login ?? ''
+			// Only include repos owned by the specified account
+			if (owner !== username) continue
 			const name = repo.name
 
 			let actionsEnabled = false
@@ -52,7 +54,15 @@ export async function listPrivateReposWithActions(
 				actionsEnabled = false
 			}
 
-			const lastCommitDate = await getLastCommitDate(octokit, owner, name)
+			let lastCommitDate: Date | null = null
+			try {
+				lastCommitDate = await getLastCommitDate(octokit, owner, name)
+			} catch (err) {
+				console.warn(
+					`  Warning: could not fetch commits for ${owner}/${name}:`,
+					err,
+				)
+			}
 
 			repos.push({
 				owner,
@@ -68,13 +78,25 @@ export async function listPrivateReposWithActions(
 }
 
 /**
+ * Returns all private repos owned by `username` that have Actions enabled.
+ */
+export async function listPrivateReposWithActions(
+	octokit: Octokit,
+	username: string,
+): Promise<Repo[]> {
+	const repos = await listPrivateRepos(octokit, username)
+	return repos.filter((repo) => repo.actionsEnabled)
+}
+
+/**
  * Returns the date of the most recent commit on the default branch,
- * or null if the repo has no commits or is inaccessible.
+ * or null if the repo has no commits.
+ * Throws for any other error (permissions, network, etc.).
  */
 export async function getLastCommitDate(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
 ): Promise<Date | null> {
 	try {
 		const { data: commits } = await octokit.rest.repos.listCommits({
@@ -83,10 +105,21 @@ export async function getLastCommitDate(
 			per_page: 1,
 		})
 		if (commits.length === 0) return null
-		const dateStr = commits[0]?.commit?.committer?.date ?? commits[0]?.commit?.author?.date
+		const dateStr =
+			commits[0]?.commit?.committer?.date ?? commits[0]?.commit?.author?.date
 		return dateStr ? new Date(dateStr) : null
-	} catch {
-		return null
+	} catch (err) {
+		// GitHub returns 409 "Git Repository is empty" for repos with zero commits
+		// console.log('caught err', err)
+		if (
+			err != null &&
+			typeof err === 'object' &&
+			'status' in err &&
+			(err as { status: number }).status === 409
+		) {
+			return null
+		}
+		throw err
 	}
 }
 
@@ -96,7 +129,7 @@ export async function getLastCommitDate(
 export async function disableActions(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
 ): Promise<void> {
 	await octokit.rest.actions.setGithubActionsPermissionsRepository({
 		owner,
@@ -111,7 +144,7 @@ export async function disableActions(
 export async function listCaches(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
 ): Promise<CacheEntry[]> {
 	const caches: CacheEntry[] = []
 	let page = 1
@@ -146,7 +179,7 @@ export async function listCaches(
 export async function clearAllCaches(
 	octokit: Octokit,
 	owner: string,
-	repo: string
+	repo: string,
 ): Promise<number> {
 	const caches = await listCaches(octokit, owner, repo)
 	for (const cache of caches) {
