@@ -6,7 +6,7 @@ import {
 	deleteArtifactsForRepos,
 	deleteLogsForRepos,
 } from '../lib/repos'
-import type { Repo, ArtifactEntry } from '../lib/github'
+import type { Repo } from '../lib/github'
 
 // Helper to build a Repo fixture
 function makeRepo(partial: Partial<Repo> & { name: string }): Repo {
@@ -113,22 +113,9 @@ describe('filterStaleRepos', () => {
 
 describe('listArtifactsForRepos', () => {
 	test('returns a map from fullName to artifact list', async () => {
-		const artifact: ArtifactEntry = {
-			id: 1,
-			name: 'build',
-			sizeInBytes: 100,
-			createdAt: '2024-01-01T00:00:00Z',
-			expiresAt: null,
-			expired: false,
-		}
-		const listFn = mock(async () => [artifact])
-		const octokit = { rest: { actions: { listArtifactsForRepo: mock(async () => ({ data: { artifacts: [] } })) } } } as never
-		// Inject a wrapped octokit that delegates listArtifacts through our mock
 		const repos: Repo[] = [
 			{ owner: 'u', name: 'r', fullName: 'u/r', actionsEnabled: true, lastCommitDate: null },
 		]
-		// We test through the module-level function by monkey-patching the import.
-		// Instead, build a minimal octokit stub matching what listArtifactsForRepos calls internally.
 		const octokitStub = {
 			rest: {
 				actions: {
@@ -141,8 +128,6 @@ describe('listArtifactsForRepos', () => {
 		const result = await listArtifactsForRepos(octokitStub, repos)
 		expect(result.get('u/r')).toHaveLength(1)
 		expect(result.get('u/r')?.[0]?.name).toBe('build')
-		void listFn // suppress unused warning
-		void octokit
 	})
 
 	test('returns empty lists for repos with no artifacts', async () => {
