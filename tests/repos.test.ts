@@ -1,6 +1,12 @@
-import { expect, test, describe } from 'bun:test'
-import { filterStaleRepos, STALE_THRESHOLD_DAYS } from '../lib/repos'
-import type { Repo } from '../lib/github'
+import { expect, mock, test, describe } from 'bun:test'
+import {
+	filterStaleRepos,
+	STALE_THRESHOLD_DAYS,
+	listArtifactsForRepos,
+	deleteArtifactsForRepos,
+	deleteLogsForRepos,
+} from '../lib/repos'
+import type { Repo, ArtifactEntry } from '../lib/github'
 
 // Helper to build a Repo fixture
 function makeRepo(partial: Partial<Repo> & { name: string }): Repo {
@@ -102,5 +108,108 @@ describe('filterStaleRepos', () => {
 
 	test('returns empty array when given empty input', () => {
 		expect(filterStaleRepos([], STALE_THRESHOLD_DAYS)).toEqual([])
+	})
+})
+
+describe('listArtifactsForRepos', () => {
+	test('returns a map from fullName to artifact list', async () => {
+		const artifact: ArtifactEntry = {
+			id: 1,
+			name: 'build',
+			sizeInBytes: 100,
+			createdAt: '2024-01-01T00:00:00Z',
+			expiresAt: null,
+			expired: false,
+		}
+		const listFn = mock(async () => [artifact])
+		const octokit = { rest: { actions: { listArtifactsForRepo: mock(async () => ({ data: { artifacts: [] } })) } } } as never
+		// Inject a wrapped octokit that delegates listArtifacts through our mock
+		const repos: Repo[] = [
+			{ owner: 'u', name: 'r', fullName: 'u/r', actionsEnabled: true, lastCommitDate: null },
+		]
+		// We test through the module-level function by monkey-patching the import.
+		// Instead, build a minimal octokit stub matching what listArtifactsForRepos calls internally.
+		const octokitStub = {
+			rest: {
+				actions: {
+					listArtifactsForRepo: mock(async () => ({
+						data: { artifacts: [{ id: 1, name: 'build', size_in_bytes: 100, created_at: '2024-01-01T00:00:00Z', expires_at: null, expired: false }] },
+					})),
+				},
+			},
+		} as never
+		const result = await listArtifactsForRepos(octokitStub, repos)
+		expect(result.get('u/r')).toHaveLength(1)
+		expect(result.get('u/r')?.[0]?.name).toBe('build')
+		void listFn // suppress unused warning
+		void octokit
+	})
+
+	test('returns empty lists for repos with no artifacts', async () => {
+		const octokitStub = {
+			rest: {
+				actions: {
+					listArtifactsForRepo: mock(async () => ({ data: { artifacts: [] } })),
+				},
+			},
+		} as never
+		const repos: Repo[] = [
+			{ owner: 'u', name: 'r', fullName: 'u/r', actionsEnabled: true, lastCommitDate: null },
+		]
+		const result = await listArtifactsForRepos(octokitStub, repos)
+		expect(result.get('u/r')).toHaveLength(0)
+	})
+})
+
+describe('deleteArtifactsForRepos', () => {
+	test('returns a map of deleted artifact counts', async () => {
+		const deleteFn = mock(async () => ({}))
+		const octokitStub = {
+			rest: {
+				actions: {
+					listArtifactsForRepo: mock(async () => ({
+						data: {
+							artifacts: [
+								{ id: 10, name: 'a', size_in_bytes: 0, created_at: null, expires_at: null, expired: false },
+								{ id: 11, name: 'b', size_in_bytes: 0, created_at: null, expires_at: null, expired: false },
+							],
+						},
+					})),
+					deleteArtifact: deleteFn,
+				},
+			},
+		} as never
+		const repos: Repo[] = [
+			{ owner: 'u', name: 'r', fullName: 'u/r', actionsEnabled: true, lastCommitDate: null },
+		]
+		const result = await deleteArtifactsForRepos(octokitStub, repos)
+		expect(result.get('u/r')).toBe(2)
+		expect(deleteFn).toHaveBeenCalledTimes(2)
+	})
+})
+
+describe('deleteLogsForRepos', () => {
+	test('returns a map of deleted log counts', async () => {
+		const deleteLogsFn = mock(async () => ({}))
+		const octokitStub = {
+			rest: {
+				actions: {
+					listWorkflowRunsForRepo: mock(async () => ({
+						data: {
+							workflow_runs: [
+								{ id: 1, name: 'CI', status: 'completed', conclusion: 'success', created_at: '2024-01-01T00:00:00Z', updated_at: '2024-01-01T00:01:00Z' },
+							],
+						},
+					})),
+					deleteWorkflowRunLogs: deleteLogsFn,
+				},
+			},
+		} as never
+		const repos: Repo[] = [
+			{ owner: 'u', name: 'r', fullName: 'u/r', actionsEnabled: true, lastCommitDate: null },
+		]
+		const result = await deleteLogsForRepos(octokitStub, repos)
+		expect(result.get('u/r')).toBe(1)
+		expect(deleteLogsFn).toHaveBeenCalledTimes(1)
 	})
 })

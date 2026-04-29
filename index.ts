@@ -12,6 +12,9 @@ import {
 	filterStaleRepos as defaultFilterStaleRepos,
 	disableStaleRepos as defaultDisableStaleRepos,
 	clearCachesForRepos as defaultClearCachesForRepos,
+	listArtifactsForRepos as defaultListArtifactsForRepos,
+	deleteArtifactsForRepos as defaultDeleteArtifactsForRepos,
+	deleteLogsForRepos as defaultDeleteLogsForRepos,
 	STALE_THRESHOLD_DAYS,
 } from './lib/repos.js'
 
@@ -56,6 +59,9 @@ export interface CliDeps {
 	filterStaleRepos: typeof defaultFilterStaleRepos
 	disableStaleRepos: typeof defaultDisableStaleRepos
 	clearCachesForRepos: typeof defaultClearCachesForRepos
+	listArtifactsForRepos: typeof defaultListArtifactsForRepos
+	deleteArtifactsForRepos: typeof defaultDeleteArtifactsForRepos
+	deleteLogsForRepos: typeof defaultDeleteLogsForRepos
 }
 
 const defaultCliDeps: CliDeps = {
@@ -66,6 +72,9 @@ const defaultCliDeps: CliDeps = {
 	filterStaleRepos: defaultFilterStaleRepos,
 	disableStaleRepos: defaultDisableStaleRepos,
 	clearCachesForRepos: defaultClearCachesForRepos,
+	listArtifactsForRepos: defaultListArtifactsForRepos,
+	deleteArtifactsForRepos: defaultDeleteArtifactsForRepos,
+	deleteLogsForRepos: defaultDeleteLogsForRepos,
 }
 
 export function buildCli(
@@ -211,6 +220,142 @@ export function buildCli(
 				const results = await deps.clearCachesForRepos(octokit, stale)
 				for (const [name, count] of results) {
 					console.log(`  ${name}: ${count} cache(s) deleted`)
+				}
+				console.log('\nDone.')
+			},
+		)
+		.command(
+			'list-artifacts',
+			`Report on artifacts stored by Actions for private repos with no commits in the last N days (default: ${STALE_THRESHOLD_DAYS})`,
+			(yargs) =>
+				yargs
+					.option('days', {
+						alias: 'd',
+						type: 'number',
+						description: 'Target repos with no commits in the last N days',
+						default: STALE_THRESHOLD_DAYS,
+					})
+					.option('force-all', {
+						type: 'boolean',
+						description:
+							'List artifacts for all stale private repos, even if Actions are currently disabled',
+						default: false,
+					}),
+			async (argv) => {
+				const octokit = deps.createGitHubClient(getToken())
+				const username = getUsername()
+				console.log(
+					argv.forceAll
+						? 'Fetching all private repos…'
+						: 'Fetching private repos with Actions enabled…',
+				)
+				const allRepos = argv.forceAll
+					? await deps.listPrivateRepos(octokit, username)
+					: await deps.listPrivateReposWithActions(octokit, username)
+				const stale = deps.filterStaleRepos(allRepos, argv.days, {
+					requireActionsEnabled: !argv.forceAll,
+				})
+				if (stale.length === 0) {
+					console.log('No stale repos found.')
+					return
+				}
+				console.log(`Listing artifacts for ${stale.length} stale repo(s):`)
+				const results = await deps.listArtifactsForRepos(octokit, stale)
+				let totalArtifacts = 0
+				for (const [name, artifacts] of results) {
+					console.log(`  ${name}: ${artifacts.length} artifact(s)`)
+					for (const a of artifacts) {
+						const created = a.createdAt ? formatDate(new Date(a.createdAt)) : 'unknown'
+						const sizeKb = (a.sizeInBytes / 1024).toFixed(1)
+						console.log(`    - ${a.name} (${sizeKb} KB, created ${created}${a.expired ? ', expired' : ''})`)
+					}
+					totalArtifacts += artifacts.length
+				}
+				console.log(`\nTotal: ${totalArtifacts} artifact(s) across ${stale.length} repo(s).`)
+			},
+		)
+		.command(
+			'delete-artifacts',
+			`Delete all artifacts stored by Actions for private repos with no commits in the last N days (default: ${STALE_THRESHOLD_DAYS})`,
+			(yargs) =>
+				yargs
+					.option('days', {
+						alias: 'd',
+						type: 'number',
+						description: 'Target repos with no commits in the last N days',
+						default: STALE_THRESHOLD_DAYS,
+					})
+					.option('force-all', {
+						type: 'boolean',
+						description:
+							'Delete artifacts for all stale private repos, even if Actions are currently disabled',
+						default: false,
+					}),
+			async (argv) => {
+				const octokit = deps.createGitHubClient(getToken())
+				const username = getUsername()
+				console.log(
+					argv.forceAll
+						? 'Fetching all private repos…'
+						: 'Fetching private repos with Actions enabled…',
+				)
+				const allRepos = argv.forceAll
+					? await deps.listPrivateRepos(octokit, username)
+					: await deps.listPrivateReposWithActions(octokit, username)
+				const stale = deps.filterStaleRepos(allRepos, argv.days, {
+					requireActionsEnabled: !argv.forceAll,
+				})
+				if (stale.length === 0) {
+					console.log('No stale repos found — nothing to delete.')
+					return
+				}
+				console.log(`Deleting artifacts for ${stale.length} stale repo(s):`)
+				const results = await deps.deleteArtifactsForRepos(octokit, stale)
+				for (const [name, count] of results) {
+					console.log(`  ${name}: ${count} artifact(s) deleted`)
+				}
+				console.log('\nDone.')
+			},
+		)
+		.command(
+			'delete-logs',
+			`Delete workflow run logs for private repos with no commits in the last N days (default: ${STALE_THRESHOLD_DAYS})`,
+			(yargs) =>
+				yargs
+					.option('days', {
+						alias: 'd',
+						type: 'number',
+						description: 'Target repos with no commits in the last N days',
+						default: STALE_THRESHOLD_DAYS,
+					})
+					.option('force-all', {
+						type: 'boolean',
+						description:
+							'Delete logs for all stale private repos, even if Actions are currently disabled',
+						default: false,
+					}),
+			async (argv) => {
+				const octokit = deps.createGitHubClient(getToken())
+				const username = getUsername()
+				console.log(
+					argv.forceAll
+						? 'Fetching all private repos…'
+						: 'Fetching private repos with Actions enabled…',
+				)
+				const allRepos = argv.forceAll
+					? await deps.listPrivateRepos(octokit, username)
+					: await deps.listPrivateReposWithActions(octokit, username)
+				const stale = deps.filterStaleRepos(allRepos, argv.days, {
+					requireActionsEnabled: !argv.forceAll,
+				})
+				if (stale.length === 0) {
+					console.log('No stale repos found — nothing to delete.')
+					return
+				}
+				console.log(`Deleting workflow run logs for ${stale.length} stale repo(s):`)
+				const results = await deps.deleteLogsForRepos(octokit, stale)
+				for (const [name, count] of results) {
+					console.log(`  ${name}: ${count} run log(s) deleted`)
 				}
 				console.log('\nDone.')
 			},

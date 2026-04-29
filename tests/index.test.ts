@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { buildCli, type CliDeps } from '../index.ts'
+import type { ArtifactEntry } from '../lib/github.ts'
 
 const deps: CliDeps = {
 	createGitHubClient: mock(() => ({ mocked: true }) as never),
@@ -9,6 +10,9 @@ const deps: CliDeps = {
 	filterStaleRepos: mock((repos: unknown[]) => repos as never),
 	disableStaleRepos: mock(async () => []),
 	clearCachesForRepos: mock(async () => new Map<string, number>()),
+	listArtifactsForRepos: mock(async () => new Map<string, ArtifactEntry[]>()),
+	deleteArtifactsForRepos: mock(async () => new Map<string, number>()),
+	deleteLogsForRepos: mock(async () => new Map<string, number>()),
 }
 
 beforeEach(() => {
@@ -27,6 +31,18 @@ beforeEach(() => {
 	deps.disableStaleRepos.mockImplementation(async () => [])
 	deps.clearCachesForRepos.mockReset()
 	deps.clearCachesForRepos.mockImplementation(
+		async () => new Map<string, number>(),
+	)
+	deps.listArtifactsForRepos.mockReset()
+	deps.listArtifactsForRepos.mockImplementation(
+		async () => new Map<string, ArtifactEntry[]>(),
+	)
+	deps.deleteArtifactsForRepos.mockReset()
+	deps.deleteArtifactsForRepos.mockImplementation(
+		async () => new Map<string, number>(),
+	)
+	deps.deleteLogsForRepos.mockReset()
+	deps.deleteLogsForRepos.mockImplementation(
 		async () => new Map<string, number>(),
 	)
 })
@@ -76,6 +92,165 @@ describe('buildCli', () => {
 			expect(deps.clearCachesForRepos).toHaveBeenCalledWith({ mocked: true }, [
 				repoWithActionsDisabled,
 			])
+		} finally {
+			console.log = originalLog
+			if (originalToken === undefined) delete process.env.GITHUB_TOKEN
+			else process.env.GITHUB_TOKEN = originalToken
+			if (originalUsername === undefined) delete process.env.GITHUB_USERNAME
+			else process.env.GITHUB_USERNAME = originalUsername
+		}
+	})
+
+	test('list-artifacts calls listArtifactsForRepos with stale repos', async () => {
+		const originalToken = process.env.GITHUB_TOKEN
+		const originalUsername = process.env.GITHUB_USERNAME
+		const originalLog = console.log
+		console.log = mock(() => undefined)
+
+		process.env.GITHUB_TOKEN = 'test-token'
+		process.env.GITHUB_USERNAME = 'testuser'
+
+		const staleRepo = {
+			owner: 'testuser',
+			name: 'stale-repo',
+			fullName: 'testuser/stale-repo',
+			actionsEnabled: true,
+			lastCommitDate: new Date('2024-01-01T00:00:00.000Z'),
+		}
+
+		deps.listPrivateReposWithActions.mockImplementation(async () => [staleRepo])
+		deps.filterStaleRepos.mockImplementation((repos) => repos as never)
+		deps.listArtifactsForRepos.mockImplementation(
+			async () => new Map([['testuser/stale-repo', []]]),
+		)
+
+		try {
+			await buildCli(['list-artifacts', '--days', '30'], deps).parseAsync()
+			expect(deps.listArtifactsForRepos).toHaveBeenCalledWith(
+				{ mocked: true },
+				[staleRepo],
+			)
+		} finally {
+			console.log = originalLog
+			if (originalToken === undefined) delete process.env.GITHUB_TOKEN
+			else process.env.GITHUB_TOKEN = originalToken
+			if (originalUsername === undefined) delete process.env.GITHUB_USERNAME
+			else process.env.GITHUB_USERNAME = originalUsername
+		}
+	})
+
+	test('delete-artifacts calls deleteArtifactsForRepos with stale repos', async () => {
+		const originalToken = process.env.GITHUB_TOKEN
+		const originalUsername = process.env.GITHUB_USERNAME
+		const originalLog = console.log
+		console.log = mock(() => undefined)
+
+		process.env.GITHUB_TOKEN = 'test-token'
+		process.env.GITHUB_USERNAME = 'testuser'
+
+		const staleRepo = {
+			owner: 'testuser',
+			name: 'stale-repo',
+			fullName: 'testuser/stale-repo',
+			actionsEnabled: true,
+			lastCommitDate: new Date('2024-01-01T00:00:00.000Z'),
+		}
+
+		deps.listPrivateReposWithActions.mockImplementation(async () => [staleRepo])
+		deps.filterStaleRepos.mockImplementation((repos) => repos as never)
+		deps.deleteArtifactsForRepos.mockImplementation(
+			async () => new Map([['testuser/stale-repo', 3]]),
+		)
+
+		try {
+			await buildCli(['delete-artifacts', '--days', '30'], deps).parseAsync()
+			expect(deps.deleteArtifactsForRepos).toHaveBeenCalledWith(
+				{ mocked: true },
+				[staleRepo],
+			)
+		} finally {
+			console.log = originalLog
+			if (originalToken === undefined) delete process.env.GITHUB_TOKEN
+			else process.env.GITHUB_TOKEN = originalToken
+			if (originalUsername === undefined) delete process.env.GITHUB_USERNAME
+			else process.env.GITHUB_USERNAME = originalUsername
+		}
+	})
+
+	test('delete-logs calls deleteLogsForRepos with stale repos', async () => {
+		const originalToken = process.env.GITHUB_TOKEN
+		const originalUsername = process.env.GITHUB_USERNAME
+		const originalLog = console.log
+		console.log = mock(() => undefined)
+
+		process.env.GITHUB_TOKEN = 'test-token'
+		process.env.GITHUB_USERNAME = 'testuser'
+
+		const staleRepo = {
+			owner: 'testuser',
+			name: 'stale-repo',
+			fullName: 'testuser/stale-repo',
+			actionsEnabled: true,
+			lastCommitDate: new Date('2024-01-01T00:00:00.000Z'),
+		}
+
+		deps.listPrivateReposWithActions.mockImplementation(async () => [staleRepo])
+		deps.filterStaleRepos.mockImplementation((repos) => repos as never)
+		deps.deleteLogsForRepos.mockImplementation(
+			async () => new Map([['testuser/stale-repo', 5]]),
+		)
+
+		try {
+			await buildCli(['delete-logs', '--days', '30'], deps).parseAsync()
+			expect(deps.deleteLogsForRepos).toHaveBeenCalledWith(
+				{ mocked: true },
+				[staleRepo],
+			)
+		} finally {
+			console.log = originalLog
+			if (originalToken === undefined) delete process.env.GITHUB_TOKEN
+			else process.env.GITHUB_TOKEN = originalToken
+			if (originalUsername === undefined) delete process.env.GITHUB_USERNAME
+			else process.env.GITHUB_USERNAME = originalUsername
+		}
+	})
+
+	test('delete-artifacts --force-all targets repos even when Actions are disabled', async () => {
+		const originalToken = process.env.GITHUB_TOKEN
+		const originalUsername = process.env.GITHUB_USERNAME
+		const originalLog = console.log
+		console.log = mock(() => undefined)
+
+		process.env.GITHUB_TOKEN = 'test-token'
+		process.env.GITHUB_USERNAME = 'testuser'
+
+		const repoWithActionsDisabled = {
+			owner: 'testuser',
+			name: 'stale-disabled',
+			fullName: 'testuser/stale-disabled',
+			actionsEnabled: false,
+			lastCommitDate: new Date('2024-01-01T00:00:00.000Z'),
+		}
+
+		deps.listPrivateRepos.mockImplementation(async () => [repoWithActionsDisabled])
+		deps.filterStaleRepos.mockImplementation((repos) => repos as never)
+		deps.deleteArtifactsForRepos.mockImplementation(
+			async () => new Map([['testuser/stale-disabled', 1]]),
+		)
+
+		try {
+			await buildCli(['delete-artifacts', '--force-all', '--days', '30'], deps).parseAsync()
+			expect(deps.listPrivateRepos).toHaveBeenCalledWith({ mocked: true }, 'testuser')
+			expect(deps.listPrivateReposWithActions).not.toHaveBeenCalled()
+			expect(deps.filterStaleRepos).toHaveBeenCalledWith(
+				[repoWithActionsDisabled],
+				30,
+				{ requireActionsEnabled: false },
+			)
+			expect(deps.deleteArtifactsForRepos).toHaveBeenCalledWith(
+				{ mocked: true },
+				[repoWithActionsDisabled],
+			)
 		} finally {
 			console.log = originalLog
 			if (originalToken === undefined) delete process.env.GITHUB_TOKEN
