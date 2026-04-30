@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { buildCli, type CliDeps } from '../index.ts'
 import type { ArtifactEntry } from '../lib/github.ts'
 
-const deps: CliDeps = {
+const deps = {
 	createGitHubClient: mock(() => ({ mocked: true }) as never),
 	listPrivateRepos: mock(async () => []),
 	listPrivateReposWithActions: mock(async () => []),
@@ -13,7 +13,7 @@ const deps: CliDeps = {
 	listArtifactsForRepos: mock(async () => new Map<string, ArtifactEntry[]>()),
 	deleteArtifactsForRepos: mock(async () => new Map<string, number>()),
 	deleteLogsForRepos: mock(async () => new Map<string, number>()),
-}
+} satisfies CliDeps
 
 beforeEach(() => {
 	deps.createGitHubClient.mockReset()
