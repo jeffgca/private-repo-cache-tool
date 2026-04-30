@@ -1,14 +1,14 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test'
 import { buildCli, type CliDeps } from '../index.ts'
-import type { ArtifactEntry } from '../lib/github.ts'
+import type { ArtifactEntry, Repo } from '../lib/github.ts'
 
 const deps = {
 	createGitHubClient: mock(() => ({ mocked: true }) as never),
-	listPrivateRepos: mock(async () => []),
-	listPrivateReposWithActions: mock(async () => []),
+	listPrivateRepos: mock(async () => [] as Repo[]),
+	listPrivateReposWithActions: mock(async () => [] as Repo[]),
 	disableActions: mock(async () => undefined),
 	filterStaleRepos: mock((repos: unknown[]) => repos as never),
-	disableStaleRepos: mock(async () => []),
+	disableStaleRepos: mock(async () => [] as Repo[]),
 	clearCachesForRepos: mock(async () => new Map<string, number>()),
 	listArtifactsForRepos: mock(async () => new Map<string, ArtifactEntry[]>()),
 	deleteArtifactsForRepos: mock(async () => new Map<string, number>()),
@@ -19,16 +19,16 @@ beforeEach(() => {
 	deps.createGitHubClient.mockReset()
 	deps.createGitHubClient.mockImplementation(() => ({ mocked: true }) as never)
 	deps.listPrivateRepos.mockReset()
-	deps.listPrivateRepos.mockImplementation(async () => [])
+	deps.listPrivateRepos.mockImplementation(async () => [] as Repo[])
 	deps.listPrivateReposWithActions.mockReset()
-	deps.listPrivateReposWithActions.mockImplementation(async () => [])
+	deps.listPrivateReposWithActions.mockImplementation(async () => [] as Repo[])
 	deps.disableActions.mockReset()
 	deps.disableActions.mockImplementation(async () => undefined)
 
 	deps.filterStaleRepos.mockReset()
 	deps.filterStaleRepos.mockImplementation((repos: unknown[]) => repos as never)
 	deps.disableStaleRepos.mockReset()
-	deps.disableStaleRepos.mockImplementation(async () => [])
+	deps.disableStaleRepos.mockImplementation(async () => [] as Repo[])
 	deps.clearCachesForRepos.mockReset()
 	deps.clearCachesForRepos.mockImplementation(
 		async () => new Map<string, number>(),
