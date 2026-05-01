@@ -103,11 +103,34 @@ jobs:
           $BinaryPath = Join-Path $PWD $Binary
           Write-Host "Testing $BinaryPath --version"
 
-          # Capture both stdout and stderr, trim whitespace
-          $Out = & $BinaryPath --version 2>&1 | Out-String
-          $Out = $Out.Trim()
+          if (-not (Test-Path $BinaryPath)) {
+            Write-Error "Binary not found at: $BinaryPath"
+            Get-ChildItem -Recurse dist | Format-List FullName,Length
+            exit 1
+          }
 
-          Write-Host "Output: $Out"
+          # Run exe and capture output robustly (stdout+stderr), plus exit code
+          $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+          $pinfo.FileName = $BinaryPath
+          $pinfo.Arguments = "--version"
+          $pinfo.RedirectStandardOutput = $true
+          $pinfo.RedirectStandardError  = $true
+          $pinfo.UseShellExecute = $false
+
+          $p = New-Object System.Diagnostics.Process
+          $p.StartInfo = $pinfo
+          [void]$p.Start()
+          $stdout = $p.StandardOutput.ReadToEnd()
+          $stderr = $p.StandardError.ReadToEnd()
+          $p.WaitForExit()
+
+          $Out = ($stdout + $stderr).Trim()
+
+          Write-Host "ExitCode: $($p.ExitCode)"
+          Write-Host "Stdout: $stdout"
+          Write-Host "Stderr: $stderr"
+          Write-Host "Combined(trimmed): $Out"
+
           if ($Out -ne $Expected) {
             Write-Error "Version mismatch (got '$Out')"
             exit 1
