@@ -77,17 +77,24 @@ for (const target of appTargets) {
 	} else {
 		console.log(`Building for target: ${target}`)
 
-		const config = {
-			entrypoints: ['./index.ts', './package.json'],
-			outdir: `${argv.outdir}/${targetTripleMap[target]}`,
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			target: target as any,
-			compile: true,
+		const result = Bun.spawnSync({
+			cmd: [
+				'bun',
+				'build',
+				'--compile',
+				`--target=${target}`,
+				'./index.ts',
+				'--outfile',
+				`${argv.outdir}/${targetTripleMap[target]}`,
+			],
+			stdout: 'inherit',
+			stderr: 'inherit',
+		})
+
+		if (result.exitCode !== 0) {
+			console.error(`Build failed for target: ${target}`)
+			process.exit(result.exitCode)
 		}
-
-		// console.log("config", config);
-
-		await Bun.build(config)
 	}
 }
 
