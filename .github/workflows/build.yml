@@ -98,9 +98,15 @@ jobs:
         run: |
           $Expected = "${{ steps.pkg.outputs.version }}"
           Write-Host "Expected version: $Expected"
+
           $Binary = "${{ steps.binary_path.outputs.binary }}"
-          Write-Host "Testing $Binary --version"
-          $Out = & .\$Binary --version
+          $BinaryPath = Join-Path $PWD $Binary
+          Write-Host "Testing $BinaryPath --version"
+
+          # Capture both stdout and stderr, trim whitespace
+          $Out = & $BinaryPath --version 2>&1 | Out-String
+          $Out = $Out.Trim()
+
           Write-Host "Output: $Out"
           if ($Out -ne $Expected) {
             Write-Error "Version mismatch (got '$Out')"
