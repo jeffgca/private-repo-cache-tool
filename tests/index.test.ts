@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, mock, test } from 'bun:test'
+import { type Mock, beforeEach, describe, expect, mock, test } from 'bun:test'
 import { buildCli, type CliDeps } from '../index.ts'
 
-const deps: CliDeps = {
+type MockedDeps = { [K in keyof CliDeps]: Mock<CliDeps[K]> }
+
+const deps: MockedDeps = {
 	createGitHubClient: mock(() => ({ mocked: true }) as never),
 	listPrivateRepos: mock(async () => []),
 	listPrivateReposWithActions: mock(async () => []),
