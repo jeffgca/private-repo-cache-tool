@@ -98,10 +98,39 @@ jobs:
         run: |
           $Expected = "${{ steps.pkg.outputs.version }}"
           Write-Host "Expected version: $Expected"
+
           $Binary = "${{ steps.binary_path.outputs.binary }}"
-          Write-Host "Testing $Binary --version"
-          $Out = & .\$Binary --version
-          Write-Host "Output: $Out"
+          $BinaryPath = Join-Path $PWD $Binary
+          Write-Host "Testing $BinaryPath --version"
+
+          if (-not (Test-Path $BinaryPath)) {
+            Write-Error "Binary not found at: $BinaryPath"
+            Get-ChildItem -Recurse dist | Format-List FullName,Length
+            exit 1
+          }
+
+          # Run exe and capture output robustly (stdout+stderr), plus exit code
+          $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+          $pinfo.FileName = $BinaryPath
+          $pinfo.Arguments = "--version"
+          $pinfo.RedirectStandardOutput = $true
+          $pinfo.RedirectStandardError  = $true
+          $pinfo.UseShellExecute = $false
+
+          $p = New-Object System.Diagnostics.Process
+          $p.StartInfo = $pinfo
+          [void]$p.Start()
+          $stdout = $p.StandardOutput.ReadToEnd()
+          $stderr = $p.StandardError.ReadToEnd()
+          $p.WaitForExit()
+
+          $Out = ($stdout + $stderr).Trim()
+
+          Write-Host "ExitCode: $($p.ExitCode)"
+          Write-Host "Stdout: $stdout"
+          Write-Host "Stderr: $stderr"
+          Write-Host "Combined(trimmed): $Out"
+
           if ($Out -ne $Expected) {
             Write-Error "Version mismatch (got '$Out')"
             exit 1
