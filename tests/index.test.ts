@@ -1,5 +1,5 @@
 import { type Mock, beforeEach, describe, expect, mock, test } from 'bun:test'
-import { buildCli, type CliDeps } from '../index.ts'
+import { buildCli, type CliDeps } from '../lib/cli.ts'
 
 type MockedDeps = { [K in keyof CliDeps]: Mock<CliDeps[K]> }
 
